@@ -6,8 +6,9 @@
  */ 
 
 #define F_CPU 16000000UL
+#define FOSC 16000000UL 
 #define BAUD 9600
-
+#define MYUBRR (FOSC/16/BAUD-1)
 
 #include <avr/io.h>
 #include <stdio.h>
@@ -29,25 +30,32 @@ volatile int8_t state = 0;
 
 
 
-/* Notes
 
-
-External button pin 22 - PA2
-Display current floor 
-
-**Switch states case frame.** 
-
-In each case send SPI message to salve UNO to indicate elevator moving, door opening and emergency. 
-Each state should check if emergency button is pressed.
-
-Fault state checks if current and requested floor is the same.
-
-**End of switch states case**
-
-
-
-*/
-
+static void USART_init(uint16_t ubrr) 
+{
+	
+	UBRR0H = (unsigned char) (ubrr >> 8); 
+	UBRR0L = (unsigned char) ubrr; 
+	UCSR0B |= (1 << RXEN0) | (1 << TXEN0); 	
+	UCSR0C |= (1 << USBS0) | (3 << UCSZ00);
+	
+}
+static void USART_Transmit(unsigned char data, FILE *stream)
+{
+	while(!(UCSR0A & (1 << UDRE0))) 
+	{
+		;
+	}
+	UDR0 = data;
+}
+static char USART_Receive(FILE *stream) 
+{
+	while(!(UCSR0A & (1 << RXC0)))
+	{
+		;
+	}	
+	return UDR0;
+}
 
 //LCD display setup
 void LCD_setup()
@@ -61,7 +69,7 @@ void LCD_setup()
 bool is_emergency_button_pressed()
 {
 	//
-	return !(PINA & (1 << PA2));		
+	return (PINA & (1 << PA0));		
 }
 
 
@@ -70,27 +78,33 @@ int main(void)
 {
     // initial lcd display
 	LCD_setup();
+	USART_init(MYUBRR);
+	
+	/*
+	For SPI communication
+	SS, MOSI and SCK
+	*/
+	DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2);
+	//Enable SPI, master, clock rate 
+	SPCR |= (1 << SPE) | (1 << MSTR) | (1 << SPR0);
 	
 	// elevator variables 
 	static int8_t request_floor = 0 , current_floor = 0;
 	
 	static bool b_doors_open = false;	
-	char req_floor_string[4];
-	char curr_floor_string[4];
-	char floor_numb_string[5];
+
 
 	uint8_t floor_numbers[2] = {0xFF,0xFF};
 	uint8_t index = 0;
 	
 	//emergency button
-	DDRA &= ~(1 << PA2);
+	DDRA &= ~(1 << PA0);
+	//PORTA |= (1 << PA0);
 	    
     while (1) 
     {
 
  		
-		
-		
 
 		switch (state)
 		{
@@ -109,13 +123,6 @@ int main(void)
 			do {key_signal_1 = KEYPAD_GetKey();} while(!(key_signal_1 >= '0' && key_signal_1 <= '9'));
 			do {key_signal_2 = KEYPAD_GetKey();} while(!(key_signal_2 >= '0' && key_signal_2 <= '9'));
 			
-				
-
-				
-			
-				
-			//if (floor_input != -1)
-		
 			
 				request_floor = (key_signal_1 -'0') * 10 + ( key_signal_2  -'0');
 				lcd_clrscr();
@@ -142,13 +149,15 @@ int main(void)
 				{
 					state = GOINGDOWN;
 				}
-					
-				
-			
-
 			break;
 
 		case GOINGUP:
+
+			if (is_emergency_button_pressed())
+			{
+				state = EMERGENCY;
+				break;
+			}		
 			if (current_floor < request_floor) 
 			{
 				current_floor++;
@@ -164,6 +173,7 @@ int main(void)
 				lcd_putc(current_floor / 10 +'0' );
 				//lcd_gotoxy(0,1);
 				lcd_putc(current_floor % 10 +'0');
+
 				_delay_ms(500);
 			} 
 			else 
@@ -175,35 +185,37 @@ int main(void)
 			//state = elevator_movement(&current_floor,request_floor);
 			break;
 		case GOINGDOWN:
-		// Movement led on 
-			//lcd_puts("down");
-			//state = elevator_movement(&current_floor,request_floor);
-		if (current_floor > request_floor)
-		{
-			current_floor--;
-			lcd_clrscr();
-			lcd_puts("Down");
-			lcd_gotoxy(7, 0);
-			//itoa(current_floor, curr_floor_string, 10);
-			lcd_puts("RF:");
-			lcd_putc(request_floor / 10 +'0' );
-			//lcd_gotoxy(0,1);
-			lcd_putc(request_floor % 10 +'0');
-			lcd_gotoxy(0,1);
-			lcd_putc(current_floor / 10 +'0' );
-			//lcd_gotoxy(0,1);
-			lcd_putc(current_floor % 10 +'0');
-			_delay_ms(500);
-		}
-		else
-		{
-			state = DOOR;
-		}
+			if (is_emergency_button_pressed())
+			{
+				state = EMERGENCY;
+				break;
+			}
+			if (current_floor > request_floor)
+			{
+				current_floor--;
+				lcd_clrscr();
+				lcd_puts("Down");
+				lcd_gotoxy(7, 0);
+				//itoa(current_floor, curr_floor_string, 10);
+				lcd_puts("RF:");
+				lcd_putc(request_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
+				lcd_putc(request_floor % 10 +'0');
+				lcd_gotoxy(0,1);
+				lcd_putc(current_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
+				lcd_putc(current_floor % 10 +'0');
+				_delay_ms(500);
+			}
+			else
+			{
+				state = DOOR;
+			}
 		break;
 		
 		case DOOR:
 			lcd_clrscr();
-			lcd_puts("door");
+			lcd_puts("D opening");
 			_delay_ms(5000);
 			state = IDLE;
 		
@@ -216,14 +228,24 @@ int main(void)
 		
 		case FAULT:
 			lcd_puts("fault");
+			
+			
+			//blink movement led 3 times
+			
+			_delay_ms(4000);
+			state= IDLE;
+			
+			
 		break;
 		
 		case EMERGENCY:
-			lcd_puts("emergency");
-			
-			
+			lcd_clrscr();
+			lcd_puts("Emergency");
 			
 			// buzzer on -> plays melody 
+			_delay_ms(4000);
+			
+			state = IDLE;
 		break;
 		
 		
