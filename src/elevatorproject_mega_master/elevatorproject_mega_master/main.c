@@ -31,7 +31,7 @@ volatile int8_t state = 0;
 
 
 
-static void USART_init(uint16_t ubrr) 
+/*static void USART_init(uint16_t ubrr) 
 {
 	
 	UBRR0H = (unsigned char) (ubrr >> 8); 
@@ -39,23 +39,39 @@ static void USART_init(uint16_t ubrr)
 	UCSR0B |= (1 << RXEN0) | (1 << TXEN0); 	
 	UCSR0C |= (1 << USBS0) | (3 << UCSZ00);
 	
-}
-static void USART_Transmit(unsigned char data, FILE *stream)
+}*/
+
+void SPI_MasterInit(void) 
 {
-	while(!(UCSR0A & (1 << UDRE0))) 
-	{
-		;
-	}
-	UDR0 = data;
+	/* Set MOSI and SCK output, all others input */ 
+	DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2);
+	/* Enable SPI, Master, set clock rate fck/16 */ 
+	SPCR = (1<<SPE)|(1<<MSTR)|(1<<SPR0); 
 }
-static char USART_Receive(FILE *stream) 
+
+
+// datasheet p.193
+void SPI_MasterTransmit(char cData) 
+{
+	PORTB &= ~(1 << PB0);
+	_delay_ms(2);
+	/* Start transmission */ 
+	SPDR = cData; 
+	/* Wait for transmission complete */ 
+	while(!(SPSR & (1<<SPIF)))
+	;
+	PORTB |= (1 << PB0);
+	_delay_ms(2);
+}
+
+/*static char USART_Receive(FILE *stream) 
 {
 	while(!(UCSR0A & (1 << RXC0)))
 	{
 		;
 	}	
 	return UDR0;
-}
+}*/
 
 //LCD display setup
 void LCD_setup()
@@ -76,26 +92,22 @@ bool is_emergency_button_pressed()
 
 int main(void)
 {
-    // initial lcd display
+    // initial lcd display and spi
 	LCD_setup();
-	USART_init(MYUBRR);
-	
+	//USART_init(MYUBRR);
+	SPI_MasterInit();
 	/*
 	For SPI communication
 	SS, MOSI and SCK
 	*/
-	DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2);
+	//DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2);
 	//Enable SPI, master, clock rate 
-	SPCR |= (1 << SPE) | (1 << MSTR) | (1 << SPR0);
+	//SPCR |= (1 << SPE) | (1 << MSTR) | (1 << SPR0);
 	
-	// elevator variables 
+	// elevator floor variables 
 	static int8_t request_floor = 0 , current_floor = 0;
+
 	
-	static bool b_doors_open = false;	
-
-
-	uint8_t floor_numbers[2] = {0xFF,0xFF};
-	uint8_t index = 0;
 	
 	//emergency button
 	DDRA &= ~(1 << PA0);
@@ -105,7 +117,7 @@ int main(void)
     {
 
  		
-
+		PORTB &= ~(1 << PB0);
 		switch (state)
 		{
 		case IDLE:
@@ -158,6 +170,7 @@ int main(void)
 				state = EMERGENCY;
 				break;
 			}		
+			SPI_MasterTransmit('U');
 			if (current_floor < request_floor) 
 			{
 				current_floor++;
@@ -181,8 +194,6 @@ int main(void)
 				state = DOOR;
 			}
 			
-
-			//state = elevator_movement(&current_floor,request_floor);
 			break;
 		case GOINGDOWN:
 			if (is_emergency_button_pressed())
@@ -190,6 +201,7 @@ int main(void)
 				state = EMERGENCY;
 				break;
 			}
+			SPI_MasterTransmit('D');
 			if (current_floor > request_floor)
 			{
 				current_floor--;
@@ -216,6 +228,7 @@ int main(void)
 		case DOOR:
 			lcd_clrscr();
 			lcd_puts("D opening");
+			SPI_MasterTransmit('O');
 			_delay_ms(5000);
 			state = IDLE;
 		
@@ -231,7 +244,7 @@ int main(void)
 			
 			
 			//blink movement led 3 times
-			
+			SPI_MasterTransmit('F');
 			_delay_ms(4000);
 			state= IDLE;
 			
@@ -239,8 +252,10 @@ int main(void)
 		break;
 		
 		case EMERGENCY:
+			SPI_MasterTransmit('E');
 			lcd_clrscr();
 			lcd_puts("Emergency");
+			
 			
 			// buzzer on -> plays melody 
 			_delay_ms(4000);
