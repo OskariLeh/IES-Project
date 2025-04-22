@@ -51,12 +51,12 @@ void SPI_MasterInit(void)
 
 
 // datasheet p.193
-void SPI_MasterTransmit(char cData) 
+void SPI_MasterTransmit(int data) 
 {
 	PORTB &= ~(1 << PB0);
 	_delay_ms(2);
 	/* Start transmission */ 
-	SPDR = cData; 
+	SPDR = data; 
 	/* Wait for transmission complete */ 
 	while(!(SPSR & (1<<SPIF)))
 	;
@@ -125,7 +125,7 @@ int main(void)
 			lcd_clrscr();
 			lcd_puts("Choose floor");
 			lcd_gotoxy(0, 1);
-			SPI_MasterTransmit('I');
+			SPI_MasterTransmit(state);
 			//uint8_t digits[2] = {0xFF, 0xFF};
 			uint8_t key_signal_1,key_signal_2 ;
 			//char key_signal;
@@ -170,7 +170,7 @@ int main(void)
 				state = EMERGENCY;
 				break;
 			}		
-			SPI_MasterTransmit('U');
+			SPI_MasterTransmit(state);
 			if (current_floor < request_floor) 
 			{
 				current_floor++;
@@ -201,7 +201,7 @@ int main(void)
 				state = EMERGENCY;
 				break;
 			}
-			SPI_MasterTransmit('D');
+			SPI_MasterTransmit(state);
 			if (current_floor > request_floor)
 			{
 				current_floor--;
@@ -244,7 +244,7 @@ int main(void)
 			
 			
 			//blink movement led 3 times
-			SPI_MasterTransmit('F');
+			SPI_MasterTransmit(state);
 			_delay_ms(4000);
 			state= IDLE;
 			
@@ -252,7 +252,7 @@ int main(void)
 		break;
 		
 		case EMERGENCY:
-			SPI_MasterTransmit('E');
+			SPI_MasterTransmit(state);
 			lcd_clrscr();
 			lcd_puts("Emergency");
 			
