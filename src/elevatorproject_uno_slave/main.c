@@ -13,13 +13,12 @@
 #include <util/delay.h>
 #include <util/setbaud.h>
 #include <stdio.h>
-
-#define FAULT "F"
-#define IDLE "I"
-#define GOING_UP "U"
-#define GOING_DOWN "D"
-#define DOOR_OPEN "O"
-#define EMERGENCY "E"
+#define IDLE 0
+#define GOING_UP 1
+#define GOING_DOWN 2
+#define DOOR_OPEN 3
+#define FAULT 4
+#define EMERGENCY 5
 
 void SPI_SlaveInit(void) {
 	// Enable SPI
@@ -29,7 +28,7 @@ void SPI_SlaveInit(void) {
 	DDRB |= (1 << PB4);
 }
 
-char SPI_ReceiveData(void) {
+int8_t SPI_ReceiveData(void) {
 	
 	// Wait for reception
 	while(!(SPSR & (1<<SPIF))) {
@@ -79,7 +78,6 @@ void buzz_tone(uint16_t frequency, uint16_t duration) {
 	uint16_t T = 1000000 / frequency; // Time of period in micro seconds
 	uint16_t count = (duration * 1000000) / T; // Number of periods for wanted duration
 	  
-	printf("%d %d \n", T, count);
 	for (int i = 0; i<count; i++)
 	{
 		PORTD |= (1 << PD6);
@@ -108,7 +106,7 @@ int main(void)
 	stdout = &uart_output;
 	stdin = &uart_input;
 	
-	char state[1];
+	int8_t state;
 	
     while (1) 
     {

@@ -228,7 +228,7 @@ int main(void)
 		case DOOR:
 			lcd_clrscr();
 			lcd_puts("D opening");
-			SPI_MasterTransmit('O');
+			SPI_MasterTransmit(state);
 			_delay_ms(5000);
 			state = IDLE;
 		
@@ -258,7 +258,7 @@ int main(void)
 			
 			
 			// buzzer on -> plays melody 
-			_delay_ms(4000);
+			_delay_ms(8000);
 			
 			state = IDLE;
 		break;
