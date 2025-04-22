@@ -125,7 +125,7 @@ int main(void)
 			lcd_clrscr();
 			lcd_puts("Choose floor");
 			lcd_gotoxy(0, 1);
-
+			SPI_MasterTransmit('I');
 			//uint8_t digits[2] = {0xFF, 0xFF};
 			uint8_t key_signal_1,key_signal_2 ;
 			//char key_signal;
