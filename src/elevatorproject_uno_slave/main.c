@@ -14,13 +14,32 @@
 #include <util/setbaud.h>
 #include <stdio.h>
 
-#define FAULT 0
-#define IDLE 1
-#define MOVING 2
-#define DOOR_OPEN 3
-#define EMERGENCY 4
+#define FAULT "F"
+#define IDLE "I"
+#define GOING_UP "U"
+#define GOING_DOWN "D"
+#define DOOR_OPEN "O"
+#define EMERGENCY "E"
 
-static void USART_init(uint16_t ubrr) //USART initiation
+void SPI_SlaveInit(void) {
+	// Enable SPI
+	SPCR |= (1 << SPE);
+	
+	// Set MISO as Output
+	DDRB |= (1 << PB4);
+}
+
+char SPI_ReceiveData(void) {
+	
+	// Wait for reception
+	while(!(SPSR & (1<<SPIF))) {
+		;	
+	}
+	
+	return SPDR;
+}
+
+void USART_init(uint16_t ubrr) 
 {
 	UBRR0H = (unsigned char) (ubrr >> 8);
 	UBRR0L = (unsigned char) ubrr;
@@ -30,7 +49,7 @@ static void USART_init(uint16_t ubrr) //USART initiation
 	UCSR0C |= (1 << USBS0) | (3 << UCSZ00);
 }
 
-static void USART_Transmit(unsigned char data, FILE *stream)
+void USART_Transmit(unsigned char data, FILE *stream)
 {
 	/* Wait until the transmit buffer is empty*/
 	while(!(UCSR0A & (1 << UDRE0)))
@@ -41,7 +60,7 @@ static void USART_Transmit(unsigned char data, FILE *stream)
 	UDR0 = data;
 }
 
-static char USART_Receive(FILE *stream)
+char USART_Receive(FILE *stream)
 {
 	/* Wait until the transmit buffer is empty*/
 	while(!(UCSR0A & (1 << RXC0)))
@@ -57,8 +76,8 @@ FILE uart_input = FDEV_SETUP_STREAM(NULL, USART_Receive, _FDEV_SETUP_READ);
 
 // Procedure for generating a square wave for the buzzer takes in frequency in Hz and duration in seconds
 void buzz_tone(uint16_t frequency, uint16_t duration) {
-	uint16_t T = 1000000 / frequency; // Time of period in us
-	uint16_t count = (duration * 1000000) / T;
+	uint16_t T = 1000000 / frequency; // Time of period in micro seconds
+	uint16_t count = (duration * 1000000) / T; // Number of periods for wanted duration
 	  
 	printf("%d %d \n", T, count);
 	for (int i = 0; i<count; i++)
@@ -84,15 +103,17 @@ int main(void)
 	DDRD |= (1 << PD6); // Buzzer as OUT
 	
 	USART_init(MYUBR);
+	SPI_SlaveInit();
 	
 	stdout = &uart_output;
 	stdin = &uart_input;
 	
-	printf("Hello World! \n");
-	int state = EMERGENCY;
-    
+	char state[1];
+	
     while (1) 
     {
+		state = SPI_ReceiveData();
+		
 		switch (state) {
 			case IDLE:
 
@@ -107,7 +128,8 @@ int main(void)
 				
 				// -> IDLE
 				break;
-			case MOVING:
+			case GOING_UP: //Fall through state
+			case GOING_DOWN:
 				PORTD |= (1 << PD7); // Turn on moving LED
 				
 				// -> DOOR_OPEN
@@ -135,7 +157,6 @@ int main(void)
 				PORTB &= ~(1 << PB0);
 				
 				// -> IDLE
-				state = IDLE;
 				break;
 			case FAULT:
 				// Blinks Movement LED 3 times
@@ -147,7 +168,7 @@ int main(void)
 					_delay_ms(500);
 				}
 				
-				//-IDLE
+				//-> IDLE
 				break;
 			default:
 
