@@ -96,8 +96,9 @@ int main(void)
 			lcd_puts("Choose floor");
 			lcd_gotoxy(0, 1);
 			SPI_MasterTransmit(state);
-			
-			//Keypad signal		
+
+			//uint8_t digits[2] = {0xFF, 0xFF};
+
 			uint8_t key_signal_1,key_signal_2 ;
 
 			//get keypad inputs
@@ -192,18 +193,22 @@ int main(void)
 			lcd_clrscr();
 			lcd_puts("D opening");
 			SPI_MasterTransmit(state);
-			_delay_ms(6000);
-			lcd_clrscr();
-			lcd_puts("D open");
-			_delay_ms(1000);
+
+			_delay_ms(5000);
+
 			state = IDLE;
 			break;
 		
 		case FAULT:
 			lcd_clrscr();
 			lcd_puts("fault");
+
+			
+			
+			//blink movement led 3 times
 			SPI_MasterTransmit(state);
-			_delay_ms(5000);
+			_delay_ms(4000);
+
 			state= IDLE;
 			
 			
@@ -213,10 +218,13 @@ int main(void)
 			SPI_MasterTransmit(state);
 			lcd_clrscr();
 			lcd_puts("Emergency");
-			_delay_ms(9000);
-			lcd_clrscr();
-			lcd_puts("D closed");
-			_delay_ms(1000);
+
+			
+			
+			// buzzer on -> plays melody 
+			_delay_ms(8000);
+			
+
 			state = IDLE;
 		break;
 		
