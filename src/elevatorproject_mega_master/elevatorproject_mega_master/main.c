@@ -29,6 +29,18 @@
 volatile int8_t state = 0;
 
 
+
+
+/*static void USART_init(uint16_t ubrr) 
+{
+	
+	UBRR0H = (unsigned char) (ubrr >> 8); 
+	UBRR0L = (unsigned char) ubrr; 
+	UCSR0B |= (1 << RXEN0) | (1 << TXEN0); 	
+	UCSR0C |= (1 << USBS0) | (3 << UCSZ00);
+	
+}*/
+
 void SPI_MasterInit(void) 
 {
 	/* Set MOSI and SCK output, all others input */ 
@@ -41,8 +53,7 @@ void SPI_MasterInit(void)
 // datasheet p.193
 void SPI_MasterTransmit(int data) 
 {
-	
-	PORTB &= ~(1 << PB0); // master output
+	PORTB &= ~(1 << PB0);
 	_delay_ms(2);
 	/* Start transmission */ 
 	SPDR = data; 
@@ -53,6 +64,14 @@ void SPI_MasterTransmit(int data)
 	_delay_ms(2);
 }
 
+/*static char USART_Receive(FILE *stream) 
+{
+	while(!(UCSR0A & (1 << RXC0)))
+	{
+		;
+	}	
+	return UDR0;
+}*/
 
 //LCD display setup
 void LCD_setup()
@@ -65,7 +84,7 @@ void LCD_setup()
 
 bool is_emergency_button_pressed()
 {
-
+	//
 	return (PINA & (1 << PA0));		
 }
 
@@ -75,18 +94,29 @@ int main(void)
 {
     // initial lcd display and spi
 	LCD_setup();
+	//USART_init(MYUBRR);
 	SPI_MasterInit();
+	/*
+	For SPI communication
+	SS, MOSI and SCK
+	*/
+	//DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2);
+	//Enable SPI, master, clock rate 
+	//SPCR |= (1 << SPE) | (1 << MSTR) | (1 << SPR0);
 	
 	// elevator floor variables 
 	static int8_t request_floor = 0 , current_floor = 0;
+
+	
 	
 	//emergency button
 	DDRA &= ~(1 << PA0);
-	
-
+	//PORTA |= (1 << PA0);
+	    
     while (1) 
     {
- 		//mosi
+
+ 		
 		PORTB &= ~(1 << PB0);
 		switch (state)
 		{
@@ -96,12 +126,12 @@ int main(void)
 			lcd_puts("Choose floor");
 			lcd_gotoxy(0, 1);
 			SPI_MasterTransmit(state);
-
 			//uint8_t digits[2] = {0xFF, 0xFF};
-
 			uint8_t key_signal_1,key_signal_2 ;
+			//char key_signal;
+			//int8_t floor_input  ;
+			////key_signal = KEYPAD_GetKey();
 
-			//get keypad inputs
 			do {key_signal_1 = KEYPAD_GetKey();} while(!(key_signal_1 >= '0' && key_signal_1 <= '9'));
 			do {key_signal_2 = KEYPAD_GetKey();} while(!(key_signal_2 >= '0' && key_signal_2 <= '9'));
 			
@@ -109,6 +139,7 @@ int main(void)
 				request_floor = (key_signal_1 -'0') * 10 + ( key_signal_2  -'0');
 				lcd_clrscr();
 				lcd_puts("Floor: ");
+				//itoa(request_floor, req_floor_string, 10);
 				lcd_gotoxy(7, 0);
 				lcd_putc(key_signal_1);
 				lcd_putc(key_signal_2);
@@ -133,7 +164,7 @@ int main(void)
 			break;
 
 		case GOINGUP:
-			// check if em button is pressed
+
 			if (is_emergency_button_pressed())
 			{
 				state = EMERGENCY;
@@ -146,11 +177,14 @@ int main(void)
 				lcd_clrscr();
 				lcd_puts("Up");
 				lcd_gotoxy(7, 0);
+				//itoa(current_floor, curr_floor_string, 10);
 				lcd_puts("RF:");
 				lcd_putc(request_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
 				lcd_putc(request_floor % 10 +'0');
 				lcd_gotoxy(0,1);
 				lcd_putc(current_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
 				lcd_putc(current_floor % 10 +'0');
 
 				_delay_ms(500);
@@ -162,7 +196,6 @@ int main(void)
 			
 			break;
 		case GOINGDOWN:
-			// check if em button is pressed
 			if (is_emergency_button_pressed())
 			{
 				state = EMERGENCY;
@@ -175,11 +208,14 @@ int main(void)
 				lcd_clrscr();
 				lcd_puts("Down");
 				lcd_gotoxy(7, 0);
+				//itoa(current_floor, curr_floor_string, 10);
 				lcd_puts("RF:");
 				lcd_putc(request_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
 				lcd_putc(request_floor % 10 +'0');
 				lcd_gotoxy(0,1);
 				lcd_putc(current_floor / 10 +'0' );
+				//lcd_gotoxy(0,1);
 				lcd_putc(current_floor % 10 +'0');
 				_delay_ms(500);
 			}
@@ -193,22 +229,23 @@ int main(void)
 			lcd_clrscr();
 			lcd_puts("D opening");
 			SPI_MasterTransmit(state);
-
 			_delay_ms(5000);
-
 			state = IDLE;
+		
+		// door open led to uno (5 sec)
+		// door open 
+		// back to idle state = IDLE
+		
+			
 			break;
 		
 		case FAULT:
-			lcd_clrscr();
 			lcd_puts("fault");
-
 			
 			
 			//blink movement led 3 times
 			SPI_MasterTransmit(state);
 			_delay_ms(4000);
-
 			state= IDLE;
 			
 			
@@ -218,17 +255,19 @@ int main(void)
 			SPI_MasterTransmit(state);
 			lcd_clrscr();
 			lcd_puts("Emergency");
-
 			
 			
 			// buzzer on -> plays melody 
 			_delay_ms(8000);
 			
-
 			state = IDLE;
 		break;
 		
+		
 		}
 		
+	
+	
 	}
 }
+
